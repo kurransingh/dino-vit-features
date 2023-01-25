@@ -156,7 +156,27 @@ class ViTExtractor:
         ])
         prep_img = prep(pil_image)[None, ...]
         return prep_img, pil_image
-
+    
+    def preprocess(self, img: Image.Image,
+                   load_size: Union[int, Tuple[int, int]] = None) -> Tuple[torch.Tensor, Image.Image]:
+        """
+        Preprocesses an image before extraction.
+        :param img: Pil image to be extracted.
+        :param load_size: optional. Size to resize image before the rest of preprocessing.
+        :return: a tuple containing:
+                    (1) the preprocessed image as a tensor to insert the model of shape BxCxHxW.
+                    (2) the pil image in relevant dimensions
+        """
+        pil_image = img.convert('RGB')
+        if load_size is not None:
+            pil_image = transforms.Resize(load_size, interpolation=transforms.InterpolationMode.LANCZOS)(pil_image)
+        prep = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=self.mean, std=self.std)
+        ])
+        prep_img = prep(pil_image)[None, ...]
+        return prep_img, pil_image
+    
     def _get_hook(self, facet: str):
         """
         generate a hook method for a specific block and facet.
