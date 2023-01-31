@@ -207,9 +207,9 @@ def find_cosegmentation(image_paths: List[str], elbow: float = 0.975, load_size:
     return segmentation_masks, image_pil_list
 
 
-def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size: int = 224, layer: int = 11,
+def find_cosegmentation_ros(imgs: List[Image.Image], elbow: float = 0.975, load_size: int = 224, layer: int = 11, # TODO extend to multiple images (can we leverage cosegmentation?)
                         facet: str = 'key', bin: bool = False, thresh: float = 0.065, model_type: str = 'dino_vits8',
-                        stride: int = 4, votes_percentage: int = 75, sample_interval: int = 100,
+                        stride: int = 8, votes_percentage: int = 75, sample_interval: int = 100,
                         remove_outliers: bool = False, outliers_thresh: float = 0.7, low_res_saliency_maps: bool = True,
                         save_dir: str = None) -> Tuple[List[Image.Image], List[Image.Image]]:
     """
@@ -245,13 +245,13 @@ def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size
         saliency_extractor = extractor
     if remove_outliers:
         cls_descriptors = []
-    num_images = len(image_paths)
+    num_images = len(imgs)
     if save_dir is not None:
         save_dir = Path(save_dir)
 
     # extract descriptors and saliency maps for each image
     for img in imgs:
-        image_batch, image_pil = extractor.preprocess(img, load_size)
+        image_batch, image_pil = extractor.preprocess_ros(img, load_size)
         image_pil_list.append(image_pil)
         include_cls = remove_outliers  # removing outlier images requires the cls descriptor.
         descs = extractor.extract_descriptors(image_batch.to(device), layer, facet, bin, include_cls).cpu().numpy()
@@ -267,7 +267,7 @@ def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size
                 low_res_load_size = (curr_load_size[0] // 2, curr_load_size[1] // 2)
             else:
                 low_res_load_size = curr_load_size
-            image_batch, _ = saliency_extractor.preprocess(image_path, low_res_load_size)
+            image_batch, _ = saliency_extractor.preprocess_ros(img, low_res_load_size)
 
         saliency_map = saliency_extractor.extract_saliency_maps(image_batch.to(device)).cpu().numpy()
         curr_sal_num_patches, curr_sal_load_size = saliency_extractor.num_patches, saliency_extractor.load_size
@@ -286,34 +286,35 @@ def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size
             fig.savefig(save_dir / f'{Path(image_path).stem}_saliency_map.png', bbox_inches='tight', pad_inches=0)
             plt.close(fig)
             image_pil.save(save_dir / f'{Path(image_path).stem}_resized.png')
-
-    if remove_outliers:
-        all_cls_descriptors = torch.stack(cls_descriptors, dim=2)[0, 0]
-        mean_cls_descriptor = torch.mean(all_cls_descriptors, dim=0)[None, ...]
-        cos_sim = torch.nn.CosineSimilarity(dim=1)
-        similarities_to_mean = cos_sim(all_cls_descriptors, mean_cls_descriptor)
-        inliers_idx = torch.where(similarities_to_mean >= outliers_thresh)[0]
-        inlier_image_paths, outlier_image_paths = [], []
-        inlier_descriptors, outlier_descriptors = [], []
-        inlier_saliency_maps, outlier_saliency_maps = [], []
-        inlier_image_pil, outlier_image_pil = [], []
-        inlier_num_patches, outlier_num_patches = [], []
-        inlier_load_size, outlier_load_size = [], []
-        for idx, (image_path, descriptor, saliency_map, pil_image, num_patches, load_size) in enumerate(zip(image_paths,
-                descriptors_list, saliency_maps_list, image_pil_list, num_patches_list, load_size_list)):
-            (inlier_image_paths if idx in inliers_idx else outlier_image_paths).append(image_path)
-            (inlier_descriptors if idx in inliers_idx else outlier_descriptors).append(descriptor)
-            (inlier_saliency_maps if idx in inliers_idx else outlier_saliency_maps).append(saliency_map)
-            (inlier_image_pil if idx in inliers_idx else outlier_image_pil).append(pil_image)
-            (inlier_num_patches if idx in inliers_idx else outlier_num_patches).append(num_patches)
-            (inlier_load_size if idx in inliers_idx else outlier_load_size).append(load_size)
-        image_paths = inlier_image_paths
-        descriptors_list = inlier_descriptors
-        saliency_maps_list = inlier_saliency_maps
-        image_pil_list = inlier_image_pil
-        num_patches_list = inlier_num_patches
-        load_size_list = inlier_load_size
-        num_images = len(inliers_idx)
+            
+    #TODO fix this to work with image inputs
+    # if remove_outliers:
+    #     all_cls_descriptors = torch.stack(cls_descriptors, dim=2)[0, 0]
+    #     mean_cls_descriptor = torch.mean(all_cls_descriptors, dim=0)[None, ...]
+    #     cos_sim = torch.nn.CosineSimilarity(dim=1)
+    #     similarities_to_mean = cos_sim(all_cls_descriptors, mean_cls_descriptor)
+    #     inliers_idx = torch.where(similarities_to_mean >= outliers_thresh)[0]
+    #     inlier_image_paths, outlier_image_paths = [], []
+    #     inlier_descriptors, outlier_descriptors = [], []
+    #     inlier_saliency_maps, outlier_saliency_maps = [], []
+    #     inlier_image_pil, outlier_image_pil = [], []
+    #     inlier_num_patches, outlier_num_patches = [], []
+    #     inlier_load_size, outlier_load_size = [], []
+    #     for idx, (image_path, descriptor, saliency_map, pil_image, num_patches, load_size) in enumerate(zip(image_paths,
+    #             descriptors_list, saliency_maps_list, image_pil_list, num_patches_list, load_size_list)):
+    #         (inlier_image_paths if idx in inliers_idx else outlier_image_paths).append(image_path)
+    #         (inlier_descriptors if idx in inliers_idx else outlier_descriptors).append(descriptor)
+    #         (inlier_saliency_maps if idx in inliers_idx else outlier_saliency_maps).append(saliency_map)
+    #         (inlier_image_pil if idx in inliers_idx else outlier_image_pil).append(pil_image)
+    #         (inlier_num_patches if idx in inliers_idx else outlier_num_patches).append(num_patches)
+    #         (inlier_load_size if idx in inliers_idx else outlier_load_size).append(load_size)
+    #     image_paths = inlier_image_paths
+    #     descriptors_list = inlier_descriptors
+    #     saliency_maps_list = inlier_saliency_maps
+    #     image_pil_list = inlier_image_pil
+    #     num_patches_list = inlier_num_patches
+    #     load_size_list = inlier_load_size
+    #     num_images = len(inliers_idx)
 
     # cluster all images using k-means:
     all_descriptors = np.ascontiguousarray(np.concatenate(descriptors_list, axis=2)[0, 0])
@@ -341,7 +342,7 @@ def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size
 
     if save_dir is not None:
         cmap = 'jet' if num_labels > 10 else 'tab10'
-        for image_path, num_patches, label_per_image in zip(image_paths, num_patches_list, labels_per_image):
+        for img, num_patches, label_per_image in zip(imgs, num_patches_list, labels_per_image):
             fig, ax = plt.subplots()
             ax.axis('off')
             ax.imshow(label_per_image.reshape(num_patches), vmin=0, vmax=num_labels-1, cmap=cmap)
@@ -383,21 +384,22 @@ def find_cosegmentation(imgs: List[Image.Image], elbow: float = 0.975, load_size
         grabcut_mask = Image.fromarray(np.array(grabcut_mask, dtype=bool))
         segmentation_masks.append(grabcut_mask)
 
-    if remove_outliers:
-        outlier_segmentation_masks = []
-        for load_size in outlier_load_size:
-            outlier_segmentation_masks.append(Image.fromarray(np.zeros(load_size, dtype=bool)))
+    #TODO update to work with image input
+    # if remove_outliers:
+    #     outlier_segmentation_masks = []
+    #     for load_size in outlier_load_size:
+    #         outlier_segmentation_masks.append(Image.fromarray(np.zeros(load_size, dtype=bool)))
 
-        final_segmentation_masks, final_pil_images = [], []
-        for idx in range(len(image_paths)):
-            if idx in inliers_idx:
-                final_segmentation_masks.append(segmentation_masks.pop(0))
-                final_pil_images.append(image_pil_list.pop(0))
-            else:
-                final_segmentation_masks.append(outlier_segmentation_masks.pop(0))
-                final_pil_images.append(outlier_image_pil.pop(0))
-        segmentation_masks = final_segmentation_masks
-        image_pil_list = final_pil_images
+    #     final_segmentation_masks, final_pil_images = [], []
+    #     for idx in range(len(imgs)):
+    #         if idx in inliers_idx:
+    #             final_segmentation_masks.append(segmentation_masks.pop(0))
+    #             final_pil_images.append(image_pil_list.pop(0))
+    #         else:
+    #             final_segmentation_masks.append(outlier_segmentation_masks.pop(0))
+    #             final_pil_images.append(outlier_image_pil.pop(0))
+    #     segmentation_masks = final_segmentation_masks
+    #     image_pil_list = final_pil_images
 
     return segmentation_masks, image_pil_list
 
@@ -471,7 +473,7 @@ if __name__ == "__main__":
     parser.add_argument('--load_size', default=None, type=int, help='load size of the input images. If None maintains'
                                                                     'original image size, if int resizes each image'
                                                                     'such that the smaller side is this number.')
-    parser.add_argument('--stride', default=4, type=int, help="""stride of first convolution layer. 
+    parser.add_argument('--stride', default=8, type=int, help="""stride of first convolution layer. 
                                                                  small stride -> higher resolution.""")
     parser.add_argument('--model_type', default='dino_vits8', type=str,
                         help="""type of model to extract. 

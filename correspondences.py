@@ -182,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument('--root_dir', type=str, required=True, help='The root dir of image pairs.')
     parser.add_argument('--save_dir', type=str, required=True, help='The root save dir for image pairs results.')
     parser.add_argument('--load_size', default=224, type=int, help='load size of the input image.')
-    parser.add_argument('--stride', default=4, type=int, help="""stride of first convolution layer. 
+    parser.add_argument('--stride', default=8, type=int, help="""stride of first convolution layer. 
                                                                  small stride -> higher resolution.""")
     parser.add_argument('--model_type', default='dino_vits8', type=str,
                         help="""type of model to extract. 

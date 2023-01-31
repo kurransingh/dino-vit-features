@@ -157,7 +157,7 @@ class ViTExtractor:
         prep_img = prep(pil_image)[None, ...]
         return prep_img, pil_image
     
-    def preprocess(self, img: Image.Image,
+    def preprocess_ros(self, img: Image.Image,
                    load_size: Union[int, Tuple[int, int]] = None) -> Tuple[torch.Tensor, Image.Image]:
         """
         Preprocesses an image before extraction.
