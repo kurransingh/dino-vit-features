@@ -385,7 +385,7 @@ if __name__ == "__main__":
     parser.add_argument('--load_size', default=None, type=int, help='load size of the input images. If None maintains'
                                                                     'original image size, if int resizes each image'
                                                                     'such that the smaller side is this number.')
-    parser.add_argument('--stride', default=4, type=int, help="""stride of first convolution layer. 
+    parser.add_argument('--stride', default=8, type=int, help="""stride of first convolution layer. 
                                                                  small stride -> higher resolution.""")
     parser.add_argument('--model_type', default='dino_vits8', type=str,
                         help="""type of model to extract. 

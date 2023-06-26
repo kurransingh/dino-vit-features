@@ -10,6 +10,8 @@ import types
 from pathlib import Path
 from typing import Union, List, Tuple
 from PIL import Image
+from utils import load_pretrained_weights
+from torchviz import make_dot
 
 
 class ViTExtractor:
@@ -24,11 +26,11 @@ class ViTExtractor:
     d - the embedding dimension in the ViT.
     """
 
-    def __init__(self, model_type: str = 'dino_vits8', stride: int = 4, model: nn.Module = None, device: str = 'cuda'):
+    def __init__(self, model_type: str = 'dino_vits8', stride: int = 8, model: nn.Module = None, device: str = 'cuda'):
         """
         :param model_type: A string specifying the type of model to extract from.
                           [dino_vits8 | dino_vits16 | dino_vitb8 | dino_vitb16 | vit_small_patch8_224 |
-                          vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224]
+                          vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224 | kelpie | suim]
         :param stride: stride of first convolution layer. small stride -> higher resolution.
         :param model: Optional parameter. The nn.Module to extract from instead of creating a new one in ViTExtractor.
                       should be compatible with model_type.
@@ -41,7 +43,7 @@ class ViTExtractor:
             self.model = ViTExtractor.create_model(model_type)
 
         self.model = ViTExtractor.patch_vit_resolution(self.model, stride=stride)
-        self.model.eval()
+        #self.model.eval()
         self.model.to(self.device)
         self.p = self.model.patch_embed.patch_size
         self.stride = self.model.patch_embed.proj.stride
@@ -59,11 +61,25 @@ class ViTExtractor:
         """
         :param model_type: a string specifying which model to load. [dino_vits8 | dino_vits16 | dino_vitb8 |
                            dino_vitb16 | vit_small_patch8_224 | vit_small_patch16_224 | vit_base_patch8_224 |
-                           vit_base_patch16_224]
+                           vit_base_patch16_224 | suim | kelpie]
         :return: the model
         """
         if 'dino' in model_type:
             model = torch.hub.load('facebookresearch/dino:main', model_type)
+        elif 'suim' in model_type:
+            model = torch.hub.load('facebookresearch/dino:main', 'dino_vits16')
+            path = "/home/singhk/dino/ssl_finetuning_suim_batch_4_norm_false_momentum_0_9999_restart1/checkpoint.pth"
+
+
+            load_pretrained_weights(model, path, 'student', "dino_vits16", 16)
+            #checkpoint = torch.load(path)
+            #model = torch.load(path)
+            
+            #model.load_state_dict(checkpoint['student'], strict=True)
+            #model = torch.hub.load('/home/singhk/dino/finetuned_kelpie/checkpoint.pth', 'checkpoint', source='local')
+
+        elif 'kelpie' in model_type:
+            model = torch.hub.load('/home/singhk/dino/finetuned_suim/checkpoint.pth', 'custom', source='local')
         else:  # model from timm -- load weights from timm to dino model (enables working on arbitrary size images).
             temp_model = timm.create_model(model_type, pretrained=True)
             model_type_dict = {
@@ -328,7 +344,7 @@ class ViTExtractor:
         :param batch: batch to extract saliency maps for. Has shape BxCxHxW.
         :return: a tensor of saliency maps. has shape Bxt-1
         """
-        assert self.model_type == "dino_vits8", f"saliency maps are supported only for dino_vits model_type."
+        assert self.model_type == "dino_vits8" or self.model_type == "kelpie" or self.model_type == "suim" or self.model_type == "dino_vits16", f"saliency maps are supported only for dino_vits model_type."
         self._extract_features(batch, [11], 'attn')
         head_idxs = [0, 2, 4, 5]
         curr_feats = self._feats[0] #Bxhxtxt
@@ -353,12 +369,12 @@ if __name__ == "__main__":
     parser.add_argument('--image_path', type=str, required=True, help='path of the extracted image.')
     parser.add_argument('--output_path', type=str, required=True, help='path to file containing extracted descriptors.')
     parser.add_argument('--load_size', default=224, type=int, help='load size of the input image.')
-    parser.add_argument('--stride', default=4, type=int, help="""stride of first convolution layer. 
+    parser.add_argument('--stride', default=8, type=int, help="""stride of first convolution layer. 
                                                               small stride -> higher resolution.""")
     parser.add_argument('--model_type', default='dino_vits8', type=str,
                         help="""type of model to extract. 
                         Choose from [dino_vits8 | dino_vits16 | dino_vitb8 | dino_vitb16 | vit_small_patch8_224 | 
-                        vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224]""")
+                        vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224 | kelpie | suim]""")
     parser.add_argument('--facet', default='key', type=str, help="""facet to create descriptors from. 
                                                                     options: ['key' | 'query' | 'value' | 'token']""")
     parser.add_argument('--layer', default=11, type=int, help="layer to create descriptors from.")
@@ -366,12 +382,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    with torch.no_grad():
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        extractor = ViTExtractor(args.model_type, args.stride, device=device)
-        image_batch, image_pil = extractor.preprocess(args.image_path, args.load_size)
-        print(f"Image {args.image_path} is preprocessed to tensor of size {image_batch.shape}.")
-        descriptors = extractor.extract_descriptors(image_batch.to(device), args.layer, args.facet, args.bin)
-        print(f"Descriptors are of size: {descriptors.shape}")
-        torch.save(descriptors, args.output_path)
-        print(f"Descriptors saved to: {args.output_path}")
+    #with torch.no_grad():
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    extractor = ViTExtractor(args.model_type, args.stride, device=device)
+    image_batch, image_pil = extractor.preprocess(args.image_path, args.load_size)
+    print(f"Image {args.image_path} is preprocessed to tensor of size {image_batch.shape}.")
+    descriptors = extractor.extract_descriptors(image_batch.to(device), args.layer, args.facet, args.bin)
+    print(f"Descriptors are of size: {descriptors.shape}")
+    torch.save(descriptors, args.output_path)
+    print(f"Descriptors saved to: {args.output_path}")
+    
+    #input_names = ["Input image(s)"]
+    #output_names = ["Patch descriptors"]
+    #torch.onnx.export(extractor.model, image_batch, 'ViT_extractor.onnx', input_names=input_names, output_names=output_names)
+    make_dot(descriptors, params=dict(list(extractor.model.named_parameters()))).render("ViT_Extractor", format="png")

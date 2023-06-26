@@ -478,7 +478,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_type', default='dino_vits8', type=str,
                         help="""type of model to extract. 
                            Choose from [dino_vits8 | dino_vits16 | dino_vitb8 | dino_vitb16 | vit_small_patch8_224 | 
-                           vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224]""")
+                           vit_small_patch16_224 | vit_base_patch8_224 | vit_base_patch16_224 | suim | kelpie]""")
     parser.add_argument('--facet', default='key', type=str, help="""facet to create descriptors from. 
                                                                     options: ['key' | 'query' | 'value' | 'token']""")
     parser.add_argument('--layer', default=11, type=int, help="layer to create descriptors from.")

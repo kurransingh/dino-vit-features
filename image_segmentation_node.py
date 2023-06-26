@@ -1,7 +1,8 @@
-#from cv_bridge import CvBridge, CvBridgeError
-#import cv2
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
 import rospy
-from sensor_msgs.msg import CompressedImage as RosImage
+from sensor_msgs.msg import CompressedImage as RosImageCompressed
+from sensor_msgs.msg import Image as RosImage
 import numpy as np
 import argparse
 from PIL import Image
@@ -9,7 +10,7 @@ from cosegmentation import find_cosegmentation_ros, draw_cosegmentation_binary_m
 import torch
 import io
 
-#bridge = CvBridge()
+bridge = CvBridge()
 """ taken from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse"""
 def str2bool(v):
     if isinstance(v, bool):
@@ -51,9 +52,24 @@ def image_callback(msg):
 
 
 
-    # image_pub = rospy.Publisher("/kelpie/img_segmented", Image, queue_size=10)
+    image_pub = rospy.Publisher("/kelpie/img_segmented", RosImage, queue_size=10)
+    
+    im = seg_masks[0].convert('RGB') # assuming single image only in list
+
+    msg = RosImage()
+    msg.header.stamp = rospy.Time.now()
+    msg.height = im.height
+    msg.width = im.width
+    msg.encoding = "rgb8"
+    msg.is_bigendian = False
+    msg.step = 3 * im.width
+    msg.data = np.array(im).tobytes()
+
+    image_pub.publish(msg)
+
+
     # try:
-    #     image_pub.publish(bridge.cv2_to_imgmsg(img2, "32FC1"))
+    #     image_pub.publish(bridge.cv2_to_imgmsg(seg_masks, "32FC1"))
     # except CvBridgeError as e:
     #     print(e)
 
@@ -61,14 +77,14 @@ if __name__ == "__main__":
     rospy.init_node('img_segmentation_node')
     image_topic = "/kelpie/usb_cam/image_raw/compressed"
 
-    rospy.Subscriber(image_topic, RosImage, image_callback)
+    rospy.Subscriber(image_topic, RosImageCompressed, image_callback)
 
     print("STARTED SUBSCRIBER!")
 
     parser = argparse.ArgumentParser(description='Facilitate ViT Descriptor cosegmentations.')
     # parser.add_argument('--root_dir', type=str, required=True, help='The root dir of image sets.')
     # parser.add_argument('--save_dir', type=str, required=True, help='The root save dir for image sets results.')
-    parser.add_argument('--load_size', default=None, type=int, help='load size of the input images. If None maintains'
+    parser.add_argument('--load_size', default=224, type=int, help='load size of the input images. If None maintains'
                                                                     'original image size, if int resizes each image'
                                                                     'such that the smaller side is this number.')
     parser.add_argument('--stride', default=8, type=int, help="""stride of first convolution layer. 
