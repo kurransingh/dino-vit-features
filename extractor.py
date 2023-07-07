@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Union, List, Tuple
 from PIL import Image
 from utils import load_pretrained_weights
-from torchviz import make_dot
+# from torchviz import make_dot
 
 
 class ViTExtractor:
@@ -68,7 +68,7 @@ class ViTExtractor:
             model = torch.hub.load('facebookresearch/dino:main', model_type)
         elif 'suim' in model_type:
             model = torch.hub.load('facebookresearch/dino:main', 'dino_vits16')
-            path = "/home/singhk/dino/ssl_finetuning_suim_batch_4_norm_false_momentum_0_9999_restart1/checkpoint.pth"
+            path = "/home/singhk/dino/ssl_finetuning_suim_batch_4_norm_false_momentum_0_9999/checkpoint0100.pth"
 
 
             load_pretrained_weights(model, path, 'student', "dino_vits16", 16)
@@ -76,7 +76,7 @@ class ViTExtractor:
             #model = torch.load(path)
             
             #model.load_state_dict(checkpoint['student'], strict=True)
-            #model = torch.hub.load('/home/singhk/dino/finetuned_kelpie/checkpoint.pth', 'checkpoint', source='local')
+            #model = torch.hub.load(path, 'checkpoint', source='local')
 
         elif 'kelpie' in model_type:
             model = torch.hub.load('/home/singhk/dino/finetuned_suim/checkpoint.pth', 'custom', source='local')
