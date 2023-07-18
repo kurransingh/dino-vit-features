@@ -10,6 +10,11 @@ from cosegmentation import find_cosegmentation_ros, draw_cosegmentation_binary_m
 import torch
 import io
 
+import message_filters
+from std_msgs.msg import Int32, Float32
+
+
+
 bridge = CvBridge()
 """ taken from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse"""
 def str2bool(v):
@@ -23,8 +28,8 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def image_callback(msg):
-    # print(data.encoding)
+def image_sonar_callback(image_msg, sonar_msg):
+      # print(data.encoding)
     # try:
     #     cv_image = bridge.imgmsg_to_cv2(data, "32FC1")
     # except CvBridgeError as e:
@@ -73,12 +78,20 @@ def image_callback(msg):
     # except CvBridgeError as e:
     #     print(e)
 
+
+
+
 if __name__ == "__main__":
     rospy.init_node('img_segmentation_node')
     image_topic = "/usb_cam/image_raw/compressed"
+    sonar_topic = "/kelpie/sonar"
 
-    rospy.Subscriber(image_topic, RosImageCompressed, image_callback)
+    image_sub = message_filters.Subscriber(image_topic, RosImageCompressed)
+    sonar_sub = message_filters.Subscriber(sonar_topic, )
 
+ts = message_filters.ApproximateTimeSynchronizer([image_sub, sonar_sub], 10, 0.1, allow_headerless=True)
+ts.registerCallback(image_sonar_callback)
+rospy.spin()
     print("STARTED SUBSCRIBER!")
 
     parser = argparse.ArgumentParser(description='Facilitate ViT Descriptor cosegmentations.')
